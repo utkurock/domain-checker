@@ -12,8 +12,8 @@ keys or an account anywhere.
 ## Quick start
 
 ```bash
-git clone https://github.com/utkurock/domainchecker.git
-cd domainchecker
+git clone https://github.com/utkurock/domain-checker.git
+cd domain-checker
 python3 domain_checker.py --words rocks
 ```
 
