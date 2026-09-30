@@ -1,122 +1,122 @@
 # domain-checker
 
-A tiny, dependency-free terminal tool that generates brandable names from a word
-pool and checks domain availability in bulk across the extensions you care about.
+Give it a few words and it tells you which domains you can still register.
 
-No API keys, no accounts, just Python. Works on its own or driven by an AI coding
-agent (see [Using with an AI agent](#using-with-an-ai-agent)).
+It's one Python file with no dependencies. It builds name variations from your
+words and checks each one against a list of extensions in parallel, using RDAP
+where the registry offers it and `whois` where it doesn't. You don't need API
+keys or an account anywhere.
 
+![Checking "rocks" across the default extensions](docs/check-rocks.png)
+
+## Quick start
+
+```bash
+git clone https://github.com/utkurock/domainchecker.git
+cd domainchecker
+python3 domain_checker.py --words rocks
 ```
-example              .com ✘ taken  .net ✘ taken  .co ✘ taken  .ai ✘ taken  .io ✘ taken  .xyz ✔ AVAILABLE  .fun ✔ AVAILABLE  .finance ✔ AVAILABLE  .money ✔ AVAILABLE
-sample               .com ✘ taken  .net ✘ taken  .co ✘ taken  .ai ✘ taken  .io ✘ taken  .xyz ✘ taken  .fun ✘ taken  .finance ✔ AVAILABLE  .money ✔ AVAILABLE
-```
 
----
+You need Python 3.9 or newer and the `whois` command. macOS ships with it. On
+Debian or Ubuntu, run `sudo apt install whois`.
 
 ## Default extensions
 
-Checked when you pass no `--tlds`:
+With no `--tlds` flag, every name is checked against these nine:
 
 ```
 .com  .net  .co  .ai  .io  .xyz  .fun  .finance  .money
 ```
 
-Add more on top with `--extra` (for example `--extra app dev gg`), or replace
-the whole list with `--tlds`.
+Use `--extra app dev gg` to check more on top of the defaults. If you only care
+about a few, `--tlds com io` replaces the list.
 
-## How it works
+## Generating names
 
-Availability is resolved per TLD using the most reliable public source:
+A plain dictionary word is almost always taken on `.com`, so the script can
+build variations for you. `--suffixes` adds endings like `hq`, `ly` and `kit`,
+`--prefixes` puts `get`, `try` or `join` in front, and `--combos` glues your
+words together in pairs. With `--available-only` you only see rows that have at
+least one free extension.
 
-| Source | Used for | Signal |
-|--------|----------|--------|
-| RDAP (endpoint from IANA's bootstrap registry) | most TLDs (`.ai`, `.xyz`, `.fun`, `.io`, `.finance`, `.money`, ...) | HTTP `404` = available, `200` = taken |
-| `whois` | `.com`, `.net`, `.co` and any TLD without a public RDAP server | `NOT FOUND` / `No match` = available |
+![Generating variations of "rocks" and checking four extensions](docs/generate-rocks.png)
 
-Checks run concurrently via a thread pool (keep `--workers` low to stay friendly
-with `whois` rate limits).
+That run turned `rocks` into 19 names and 76 lookups, and five names came back
+free on `.com`. The `.app` lookup for `rockskit` hit a rate limit. That happens
+now and then, and running the one name again with `--workers 1` sorts it out.
 
-## Requirements
-
-- Python 3.9+
-- `whois` CLI (for `.com` / `.net` / `.co` and RDAP fallbacks)
-  - macOS: preinstalled, or `brew install whois`
-  - Debian/Ubuntu: `sudo apt install whois`
-
-No pip packages required, standard library only.
-
-## Install
+A few more ways to feed it words:
 
 ```bash
-git clone https://github.com/utkurock/domainchecker.git
-cd domainchecker
-python3 domain_checker.py --words example sample
-```
+# pair words together
+python3 domain_checker.py --words alpha beta --combos --available-only
 
-## Usage
-
-```bash
-# basic: a few words, default extensions
-python3 domain_checker.py --words example sample
-
-# add extra extensions to the default list
-python3 domain_checker.py --words example --extra app dev gg
-
-# generation: combos + tech suffixes, only show available
-python3 domain_checker.py --words alpha beta --combos --suffixes --available-only
-
-# from a file (one word per line)
+# read words from a file, one per line
 python3 domain_checker.py --file examples/words.txt
 
-# from stdin
+# pipe words in
 echo "example sample" | python3 domain_checker.py --stdin --prefixes
 
-# only specific extensions
-python3 domain_checker.py --words example --tlds com ai
+# stop after the first 50 generated names
+python3 domain_checker.py --words rocks --suffixes --prefixes --max 50
 ```
 
-### Flags
+## Flags
 
-| Flag | Description |
-|------|-------------|
+| Flag | What it does |
+|------|--------------|
 | `--words w1 w2 ...` | base words |
-| `--file PATH` | read words from a file (one per line) |
+| `--file PATH` | read words from a file, one per line |
 | `--stdin` | read words from stdin |
 | `--combos` | word pairs (`alpha` + `beta` → `alphabeta`) |
-| `--suffixes` | append tech suffixes (`app, hq, ly, go, hub, get, try, use, labs, kit, ify, ai`) |
-| `--prefixes` | prepend prefixes (`get, my, go, try, join, use`) |
-| `--tlds ...` | extensions to check, replaces the default list |
-| `--extra ...` | extensions appended to the list (e.g. `app dev gg`) |
-| `--available-only` | only print names with at least one free extension |
-| `--max N` | cap the number of names checked |
-| `--workers N` | concurrent requests (default `6`, keep low for whois TLDs) |
+| `--suffixes` | add `app, hq, ly, go, hub, get, try, use, labs, kit, ify, ai` to the end |
+| `--prefixes` | add `get, my, go, try, join, use` to the front |
+| `--tlds ...` | replace the default extension list |
+| `--extra ...` | check these extensions as well as the list |
+| `--available-only` | hide names where every extension is taken |
+| `--max N` | check at most N names |
+| `--workers N` | parallel lookups, default 6 |
 
-## Using with an AI agent
+## Using it with an AI agent
 
-The repo ships an [`AGENTS.md`](AGENTS.md) (also loaded through `CLAUDE.md`) that
-tells a coding agent such as Claude Code, Codex or Cursor how to run a naming
-session:
-
-1. Ask what the project is and collect a few seed words.
-2. Show the default extension list and ask which extra extensions to add
-   (`.app`, `.dev`, `.gg`, `.org`, `.so`, `.tech`, ...).
-3. Generate candidates, run the checker, and report only the useful results.
-
-Open the repo in your agent and say something like:
+The repo includes an [`AGENTS.md`](AGENTS.md), and `CLAUDE.md` points to it, so
+Claude Code, Codex, Cursor and similar agents pick up the instructions when you
+open the folder. Then you can ask for a domain in plain language:
 
 ```
-Find me a domain for a budgeting app. Seed words: example, sample.
+I'm building a budgeting app. Find me a domain, seed words: rocks, stack.
 ```
 
-## Caveats
+If you haven't said what the project is, the agent asks. It shows you the nine
+default extensions and asks whether you want extras such as `.app`, `.dev`,
+`.gg`, `.org`, `.so` or `.tech`. After that it writes candidates, runs the
+checker and hands back a short list with the names that are free on `.com` at
+the top.
 
-- **"Available" ≠ registrable at base price.** Premium / reserved domains may show
-  as free via RDAP/whois but cost more or be restricted. Always confirm the final
-  price at a registrar.
-- **whois can rate-limit / time out.** If you see `⚠ error` or `? unknown`,
-  re-run those names with `--tlds <tld> --workers 1`.
-- Results are a point-in-time snapshot; domains can be registered at any moment.
+## How a lookup works
+
+For most extensions the script asks the registry's RDAP server. It finds that
+server through IANA's bootstrap file, which it downloads once per run. A `404`
+means nobody holds the name, and a `200` means someone does.
+
+`.com`, `.net` and `.co` don't have a public RDAP endpoint that works for this,
+so those go to `whois`. A reply containing "No match" or "NOT FOUND" counts as
+available. If the RDAP lookup for any other extension fails, the script tries
+`whois` instead.
+
+## Things to know
+
+"Available" means nobody has registered the name. It doesn't tell you the price.
+Registries hold back premium and reserved names that look free here and then
+cost far more than the normal fee at checkout, so confirm the price at a
+registrar before you get attached to one.
+
+`whois` servers rate-limit quickly. If you see `⚠ error`, `? unknown` or
+`⏳ rate-limited`, re-run those names with a lower `--workers` value.
+
+A result is only true at the moment of the lookup. Someone can register the name
+a minute later.
 
 ## License
 
-MIT, see [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).
